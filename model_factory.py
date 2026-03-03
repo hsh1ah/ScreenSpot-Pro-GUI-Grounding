@@ -44,6 +44,14 @@ def build_model(args):
             model.load_model(model_name_or_path=model_name_or_path)
         else:
             model.load_model()
+    elif model_type == "qwen3_5":
+        from models.qwen3_5 import Qwen3_5Model
+
+        model = Qwen3_5Model()
+        if args.model_name_or_path:
+            model.load_model(model_name_or_path=model_name_or_path)
+        else:
+            model.load_model()
     elif model_type == "holo1_5":
         from models.holo1_5 import Holo1_5Model
 
@@ -152,5 +160,5 @@ def build_model(args):
         model = IterativeFocusingMethod(grounder=grounder)
     else:
         raise ValueError(f"Unsupported model type {model_type}.")
-    model.set_generation_config(temperature=0, max_new_tokens=256)
+    model.set_generation_config(temperature=0, max_new_tokens=4096)
     return model
