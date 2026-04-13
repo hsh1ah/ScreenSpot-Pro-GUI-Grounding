@@ -21,8 +21,25 @@ import torch
 from PIL import Image
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-KV_PATH = os.environ.get("KV_GROUND_PATH", "/workspace/kv-ground-8b")
-QWEN_PATH = os.environ.get("QWEN_PATH", "/root/qwen3.5-27b-awq")
+
+# Default HuggingFace model identifiers for the two models in the ensemble.
+# Override via environment variables to use local paths instead:
+#   KV_GROUND_PATH=/local/path/to/kv-ground-8b
+#   QWEN_PATH=/local/path/to/qwen3.5-27b-awq
+#
+# Models:
+#   - KV-Ground-8B: GUI grounding specialist fine-tuned from GUI-Owl-1.5
+#     https://huggingface.co/vocaela/KV-Ground-8B-BaseGuiOwl1.5-0315
+#   - Qwen3.5-27B-AWQ: General-purpose VLM (4-bit AWQ quantized)
+#     https://huggingface.co/cyankiwi/Qwen3.5-27B-AWQ-4bit
+DEFAULT_KV_PATH = "vocaela/KV-Ground-8B-BaseGuiOwl1.5-0315"
+DEFAULT_QWEN_PATH = "cyankiwi/Qwen3.5-27B-AWQ-4bit"
+
+# Zoom pipeline configuration:
+#   CROP_RATIO: fraction of image to crop around step-1 prediction (0.5 = 50%)
+#   Both models use the same 2-step zoom pipeline with greedy decoding.
+#   The router selects the model with lower zoom consistency (step-2 prediction
+#   closer to crop center = higher confidence).
 CROP_RATIO = 0.5
 
 SYSTEM_PROMPT = (
@@ -61,10 +78,23 @@ class ZoomConsistencyRouterModel:
         self.models = {}
         self.processors = {}
 
-    def load_model(self, model_name_or_path=None):
+    def load_model(self, model_name_or_path=None,
+                   kv_path=None, qwen_path=None):
+        """Load both models for the ensemble.
+
+        Args:
+            model_name_or_path: Unused (kept for compatibility with eval script).
+            kv_path: Path or HF ID for the specialist model.
+                     Defaults to KV_GROUND_PATH env var or vocaela/KV-Ground-8B-BaseGuiOwl1.5-0315.
+            qwen_path: Path or HF ID for the generalist model.
+                       Defaults to QWEN_PATH env var or cyankiwi/Qwen3.5-27B-AWQ-4bit.
+        """
         from transformers import AutoModelForImageTextToText, AutoProcessor
 
-        for name, path in [("kv", KV_PATH), ("qwen", QWEN_PATH)]:
+        kv_path = kv_path or os.environ.get("KV_GROUND_PATH", DEFAULT_KV_PATH)
+        qwen_path = qwen_path or os.environ.get("QWEN_PATH", DEFAULT_QWEN_PATH)
+
+        for name, path in [("kv", kv_path), ("qwen", qwen_path)]:
             print(f"Loading {name} from {path}...", flush=True)
             processor = AutoProcessor.from_pretrained(
                 path, min_pixels=65536, max_pixels=99_999_999,
