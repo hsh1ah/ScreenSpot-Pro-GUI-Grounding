@@ -158,6 +158,10 @@ def build_model(args):
         grounder = OSAtlas7BVLLMModel()
         grounder.load_model()
         model = IterativeFocusingMethod(grounder=grounder)
+    elif model_type == "zoom_consistency_router":
+        from models.zoom_consistency_router import ZoomConsistencyRouterModel
+        model = ZoomConsistencyRouterModel()
+        model.load_model()
     else:
         raise ValueError(f"Unsupported model type {model_type}.")
     model.set_generation_config(temperature=0, max_new_tokens=4096)
